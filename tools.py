@@ -10,7 +10,8 @@ def make_document_search_tool(retriever):
     @tool
     def search_documents(query: str) -> str:
         """Search the user's uploaded documents for information relevant to the query."""
-        docs = retriever.get_relevant_documents(query)
+        # Fixed: Updated method for latest LangChain retriever
+        docs = retriever.invoke(query)
         if not docs:
             return "No relevant content found in the uploaded documents."
         formatted = []
@@ -68,7 +69,7 @@ papers(id, title, field, year, citations)
             lines = [header, "-" * len(header)]
             for row in rows:
                 lines.append(" | ".join(str(v) for v in row))
-            return "\n".join(lines)
+            return "\n\n".join(lines)
         except Exception as e:
             return f"SQL error: {e}. {SCHEMA_DESCRIPTION}"
 
