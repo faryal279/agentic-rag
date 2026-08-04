@@ -92,7 +92,6 @@ def build_retriever(file_paths, google_api_key):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_documents)
     
-    # Official supported Google Gemini Embedding model slug
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
         google_api_key=google_api_key,
@@ -189,7 +188,18 @@ if user_question:
                             for call in msg.tool_calls:
                                 tools_used.append(call["name"])
 
-                    final_answer = messages[-1].content
+                    raw_answer = messages[-1].content
+                    if isinstance(raw_answer, list):
+                        clean_parts = []
+                        for part in raw_answer:
+                            if isinstance(part, dict) and "text" in part:
+                                clean_parts.append(part["text"])
+                            elif isinstance(part, str):
+                                clean_parts.append(part)
+                        final_answer = "\n".join(clean_parts)
+                    else:
+                        final_answer = str(raw_answer)
+
                     st.markdown(final_answer)
                     if tools_used:
                         st.caption(f"🔧 Tool(s) used: {', '.join(tools_used)}")
