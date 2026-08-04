@@ -50,6 +50,7 @@ with st.sidebar:
     if st.button("Reset conversation", use_container_width=True):
         st.session_state.chat_log = []
         st.session_state.agent = None
+        st.session_state.retriever = None
         st.rerun()
 
     st.markdown("---")
@@ -107,9 +108,10 @@ def build_agent(google_api_key, retriever=None):
     )
 
     tools = [search_web, make_sql_tool(st.session_state.db_path)]
-    doc_tool = make_document_search_tool(retriever)
-    if doc_tool is not None:
-        tools.append(doc_tool)
+    if retriever is not None:
+        doc_tool = make_document_search_tool(retriever)
+        if doc_tool is not None:
+            tools.append(doc_tool)
 
     system_prompt = (
         "You are a research assistant with access to tools: web search, a SQL "
@@ -141,6 +143,7 @@ if process_btn:
 
                 retriever, num_chunks = build_retriever(temp_paths, api_key)
                 st.session_state.retriever = retriever
+                # Agent ko recreate karna yahan critical hai:
                 st.session_state.agent = build_agent(api_key, retriever)
                 st.sidebar.success(f"Ready! Indexed {num_chunks} chunks from {len(uploaded_files)} file(s).")
             except Exception as e:
@@ -165,8 +168,8 @@ if user_question:
     if not api_key:
         st.warning("Please enter your Google API key in the sidebar first.")
     else:
-        if st.session_state.agent is None:
-            st.session_state.agent = build_agent(api_key, st.session_state.retriever)
+        # Re-build agent with current retriever if needed
+        st.session_state.agent = build_agent(api_key, st.session_state.retriever)
 
         st.session_state.chat_log.append(("user", user_question, []))
         with st.chat_message("user"):
