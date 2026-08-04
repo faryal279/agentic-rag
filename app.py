@@ -91,7 +91,7 @@ def build_retriever(file_paths, google_api_key):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_documents)
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/text-embedding-004",
         google_api_key=google_api_key,
     )
     vector_store = FAISS.from_documents(chunks, embeddings)
@@ -100,7 +100,7 @@ def build_retriever(file_paths, google_api_key):
 
 def build_agent(google_api_key, retriever=None):
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-2.5-flash",
         google_api_key=google_api_key,
         temperature=0.2,
         convert_system_message_to_human=True,
