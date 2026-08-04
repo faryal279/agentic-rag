@@ -91,8 +91,10 @@ def build_retriever(file_paths, google_api_key):
         all_documents.extend(load_document(path))
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_documents)
+    
+    # Standard stable Gemini embedding model
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
+        model="models/embedding-001",
         google_api_key=google_api_key,
     )
     vector_store = FAISS.from_documents(chunks, embeddings)
@@ -143,7 +145,6 @@ if process_btn:
 
                 retriever, num_chunks = build_retriever(temp_paths, api_key)
                 st.session_state.retriever = retriever
-                # Agent ko recreate karna yahan critical hai:
                 st.session_state.agent = build_agent(api_key, retriever)
                 st.sidebar.success(f"Ready! Indexed {num_chunks} chunks from {len(uploaded_files)} file(s).")
             except Exception as e:
@@ -168,7 +169,6 @@ if user_question:
     if not api_key:
         st.warning("Please enter your Google API key in the sidebar first.")
     else:
-        # Re-build agent with current retriever if needed
         st.session_state.agent = build_agent(api_key, st.session_state.retriever)
 
         st.session_state.chat_log.append(("user", user_question, []))
