@@ -3,7 +3,7 @@ import tempfile
 
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
@@ -21,7 +21,7 @@ st.caption(
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
-# Sidebar
+# Sidebar Setup
 with st.sidebar:
     st.header("Setup")
 
@@ -61,7 +61,7 @@ with st.sidebar:
 - *"Which paper in the sample database has the most citations?"* → SQL tool
 """)
 
-# Session state
+# Session State Initialization
 if "retriever" not in st.session_state:
     st.session_state.retriever = None
 if "chat_log" not in st.session_state:
@@ -123,7 +123,7 @@ def build_agent(google_api_key, retriever=None):
     return create_react_agent(llm, tools, prompt=system_prompt)
 
 
-# Process uploaded documents
+# Document processing logic
 if process_btn:
     if not api_key:
         st.sidebar.error("Please enter your Google API key.")
@@ -152,7 +152,7 @@ if process_btn:
                     except OSError:
                         pass
 
-# Chat interface
+# Chat interface rendering
 for role, text, tool_names in st.session_state.chat_log:
     with st.chat_message(role):
         st.markdown(text)
