@@ -92,7 +92,7 @@ def build_retriever(file_paths, google_key):
         google_api_key=google_key,
     )
     vector_store = FAISS.from_documents(chunks, embeddings)
-    return vector_store.as_retriever(search_kwargs={"k": 6}), len(chunks)
+    return vector_store.as_retriever(search_kwargs={"k": 8}), len(chunks)
 
 
 def build_agent(groq_key, retriever=None):
@@ -109,10 +109,11 @@ def build_agent(groq_key, retriever=None):
             tools.append(doc_tool)
 
     system_prompt = (
-        "You are a research assistant with access to web search, SQL DB, "
-        "and user-uploaded documents. When reviewing uploaded documents "
-        "(like paper revisions and review feedback), carefully cross-reference "
-        "them using the document search tool and provide clear, itemized recommendations."
+        "You are an active research assistant. When the user asks about uploaded documents, "
+        "you MUST call the `search_documents` tool first to inspect the content before answering. "
+        "NEVER tell the user to use the search tool themselves—YOU are the agent responsible for calling the tool. "
+        "Query the document search tool, analyze the returned text from both files, and output "
+        "a detailed list of specific changes, feedback points, and recommended edits for the paper."
     )
 
     return create_react_agent(llm, tools, prompt=system_prompt)
