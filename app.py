@@ -5,7 +5,8 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_groq import ChatGroq
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
@@ -16,29 +17,32 @@ st.set_page_config(page_title="Agentic RAG Research Assistant", page_icon="🤖"
 st.title("🤖 Agentic RAG Research Assistant")
 st.caption(
     "An agent that decides for itself whether to search your documents, "
-    "search the live web, or query a database — and shows its work."
+    "search the live web, or query a database — powered by Groq & Gemini Embeddings."
 )
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
 # Sidebar Setup
 with st.sidebar:
-    st.header("Setup")
+    st.header("Setup Keys")
 
-    api_key = st.text_input(
-        "Google API Key",
+    groq_api_key = st.text_input(
+        "Groq API Key",
+        type="password",
+        value=os.getenv("GROQ_API_KEY", ""),
+        help="Get a key at https://console.groq.com/keys",
+    )
+
+    google_api_key = st.text_input(
+        "Google API Key (for Embeddings)",
         type="password",
         value=os.getenv("GOOGLE_API_KEY", ""),
-        help="Get a free key at https://aistudio.google.com/app/apikey",
+        help="Get a key at https://aistudio.google.com/app/apikey",
     )
 
     st.markdown("---")
-    st.subheader("Optional: add your own documents")
-    st.caption(
-        "The agent already has a sample sales/papers database and live web "
-        "search available. Uploading documents adds a third source it can "
-        "draw on."
-    )
+    st.subheader("Add your documents")
+    st.caption("Upload both your paper and review documents together.")
 
     uploaded_files = st.file_uploader(
         "Upload documents",
@@ -52,15 +56,6 @@ with st.sidebar:
         st.session_state.agent = None
         st.session_state.retriever = None
         st.rerun()
-
-    st.markdown("---")
-    with st.expander("Try asking..."):
-        st.markdown("""\
-- *"What were total units sold for Wireless Mouse across all months?"* → SQL tool
-- *"Who is the current president of France?"* → Web search tool
-- *"Summarize the key finding in the uploaded document"* → Document tool (after upload)
-- *"Which paper in the sample database has the most citations?"* → SQL tool
-""")
 
 # Session State Initialization
 if "retriever" not in st.session_state:
@@ -85,27 +80,26 @@ def load_document(file_path: str):
         raise ValueError(f"Unsupported file type: {ext}")
 
 
-def build_retriever(file_paths, google_api_key):
+def build_retriever(file_paths, google_key):
     all_documents = []
     for path in file_paths:
         all_documents.extend(load_document(path))
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_documents)
-    
+
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
-        google_api_key=google_api_key,
+        google_api_key=google_key,
     )
     vector_store = FAISS.from_documents(chunks, embeddings)
-    return vector_store.as_retriever(search_kwargs={"k": 4}), len(chunks)
+    return vector_store.as_retriever(search_kwargs={"k": 6}), len(chunks)
 
 
-def build_agent(google_api_key, retriever=None):
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=google_api_key,
+def build_agent(groq_key, retriever=None):
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        groq_api_key=groq_key,
         temperature=0.2,
-        convert_system_message_to_human=True,
     )
 
     tools = [search_web, make_sql_tool(st.session_state.db_path)]
@@ -115,12 +109,10 @@ def build_agent(google_api_key, retriever=None):
             tools.append(doc_tool)
 
     system_prompt = (
-        "You are a research assistant with access to tools: web search, a SQL "
-        "database (sales and papers tables), and (if available) a document "
-        "search tool over user-uploaded files. Always choose the most "
-        "appropriate tool for the question rather than answering from memory "
-        "alone when a tool could give a more accurate or current answer. "
-        "Keep answers concise and cite which source you used."
+        "You are a research assistant with access to web search, SQL DB, "
+        "and user-uploaded documents. When reviewing uploaded documents "
+        "(like paper revisions and review feedback), carefully cross-reference "
+        "them using the document search tool and provide clear, itemized recommendations."
     )
 
     return create_react_agent(llm, tools, prompt=system_prompt)
@@ -128,12 +120,14 @@ def build_agent(google_api_key, retriever=None):
 
 # Document processing logic
 if process_btn:
-    if not api_key:
-        st.sidebar.error("Please enter your Google API key.")
+    if not google_api_key:
+        st.sidebar.error("Please enter your Google API key for embeddings.")
+    elif not groq_api_key:
+        st.sidebar.error("Please enter your Groq API key.")
     elif not uploaded_files:
-        st.sidebar.error("Please upload at least one file.")
+        st.sidebar.error("Please upload your documents.")
     else:
-        with st.spinner("Building document retriever..."):
+        with st.spinner("Processing both documents..."):
             temp_paths = []
             try:
                 for f in uploaded_files:
@@ -142,9 +136,9 @@ if process_btn:
                         tmp.write(f.read())
                         temp_paths.append(tmp.name)
 
-                retriever, num_chunks = build_retriever(temp_paths, api_key)
+                retriever, num_chunks = build_retriever(temp_paths, google_api_key)
                 st.session_state.retriever = retriever
-                st.session_state.agent = build_agent(api_key, retriever)
+                st.session_state.agent = build_agent(groq_api_key, retriever)
                 st.sidebar.success(f"Ready! Indexed {num_chunks} chunks from {len(uploaded_files)} file(s).")
             except Exception as e:
                 st.sidebar.error(f"Failed to process documents: {e}")
@@ -165,17 +159,17 @@ for role, text, tool_names in st.session_state.chat_log:
 user_question = st.chat_input("Ask a question...")
 
 if user_question:
-    if not api_key:
-        st.warning("Please enter your Google API key in the sidebar first.")
+    if not groq_api_key or not google_api_key:
+        st.warning("Please enter both API keys in the sidebar.")
     else:
-        st.session_state.agent = build_agent(api_key, st.session_state.retriever)
+        st.session_state.agent = build_agent(groq_api_key, st.session_state.retriever)
 
         st.session_state.chat_log.append(("user", user_question, []))
         with st.chat_message("user"):
             st.markdown(user_question)
 
         with st.chat_message("assistant"):
-            with st.spinner("Deciding which tool(s) to use..."):
+            with st.spinner("Analyzing documents..."):
                 try:
                     result = st.session_state.agent.invoke(
                         {"messages": [HumanMessage(content=user_question)]}
