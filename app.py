@@ -92,9 +92,9 @@ def build_retriever(file_paths, google_api_key):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_documents)
     
-    # Standard stable Gemini embedding model
+    # Official supported Google Gemini Embedding model slug
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/gemini-embedding-001",
         google_api_key=google_api_key,
     )
     vector_store = FAISS.from_documents(chunks, embeddings)
